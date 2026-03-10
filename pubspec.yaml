@@ -1,0 +1,28 @@
+name: tagging_test_app
+description: "Protótipo de app Flutter para testes de tagueamento com Firebase Analytics."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase Core - obrigatório para inicializar o Firebase
+  firebase_core: ^3.6.0
+
+  # Firebase Analytics
+  firebase_analytics: ^11.3.3
+
+  # Ícones
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
