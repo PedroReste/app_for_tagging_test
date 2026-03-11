@@ -1,74 +1,83 @@
 import 'package:flutter/material.dart';
-import '../analytics/analytics_service.dart';
 
 class TrackedButton extends StatelessWidget {
   final String label;
-  final String eventName;
-  final String screen;
-  final Map<String, Object>? parameters;
   final VoidCallback onPressed;
-  final Color? color;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
   final IconData? icon;
-  final bool isLoading;
+  final bool isFullWidth;
+  final bool isOutlined;
+  final double verticalPadding;
 
   const TrackedButton({
     super.key,
     required this.label,
-    required this.eventName,
-    required this.screen,
     required this.onPressed,
-    this.parameters,
-    this.color,
+    this.backgroundColor,
+    this.foregroundColor,
     this.icon,
-    this.isLoading = false,
+    this.isFullWidth = true,
+    this.isOutlined = false,
+    this.verticalPadding = 16,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color ?? Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.grey[400],
-          padding: const EdgeInsets.symmetric(
-            horizontal: 32,
-            vertical: 16,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        icon: isLoading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Icon(icon ?? Icons.touch_app),
-        label: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        onPressed: isLoading
-            ? null
-            : () async {
-                // 🏷️ Dispara o evento no Firebase Analytics
-                await AnalyticsService().trackEvent(
-                  eventName: eventName,
-                  screen: screen,
-                  parameters: parameters,
-                );
-                onPressed();
-              },
-      ),
-    );
+    final style = isOutlined
+        ? OutlinedButton.styleFrom(
+            foregroundColor:
+                foregroundColor ?? Theme.of(context).primaryColor,
+            side: BorderSide(
+              color: foregroundColor ?? Theme.of(context).primaryColor,
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: verticalPadding,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          )
+        : ElevatedButton.styleFrom(
+            backgroundColor:
+                backgroundColor ?? Theme.of(context).primaryColor,
+            foregroundColor: foregroundColor ?? Colors.white,
+            padding: EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: verticalPadding,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          );
+
+    Widget button = isOutlined
+        ? OutlinedButton.icon(
+            style: style as OutlinedButton? == null ? style : style,
+            icon: Icon(icon ?? Icons.touch_app, size: 20),
+            label: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onPressed: onPressed,
+          )
+        : ElevatedButton.icon(
+            style: style,
+            icon: Icon(icon ?? Icons.touch_app, size: 20),
+            label: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onPressed: onPressed,
+          );
+
+    return isFullWidth ? SizedBox(width: double.infinity, child: button) : button;
   }
 }
