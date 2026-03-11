@@ -1,5 +1,7 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
+import '../models/product_model.dart';
+import '../models/cart_model.dart';
 
 class AnalyticsService {
   // Singleton
@@ -7,39 +9,29 @@ class AnalyticsService {
   factory AnalyticsService() => _instance;
   AnalyticsService._internal();
 
-  // Instância do Firebase Analytics
   late final FirebaseAnalytics _analytics;
   late final FirebaseAnalyticsObserver _observer;
 
-  // Log local de eventos (útil para debug e testes)
+  // Log local para debug
   final List<Map<String, dynamic>> _eventLog = [];
 
   /// Inicializa o serviço — chamar uma vez no main()
   Future<void> initialize() async {
     _analytics = FirebaseAnalytics.instance;
     _observer = FirebaseAnalyticsObserver(analytics: _analytics);
-
-    // Habilita coleta de dados
     await _analytics.setAnalyticsCollectionEnabled(true);
 
-    // Ativa o modo debug em desenvolvimento
     if (kDebugMode) {
-      debugPrint('📊 [AnalyticsService] Inicializado com sucesso.');
-      debugPrint('📊 [AnalyticsService] Debug Mode ativo.');
+      debugPrint('📊 [AnalyticsService] Firebase Analytics inicializado.');
     }
   }
 
-  /// Observador de rotas para o MaterialApp
   FirebaseAnalyticsObserver get routeObserver => _observer;
 
-  /// Retorna a instância do FirebaseAnalytics (uso avançado)
-  FirebaseAnalytics get instance => _analytics;
-
   // ─────────────────────────────────────────────
-  // MÉTODOS PÚBLICOS DE TAGUEAMENTO
+  // SCREEN VIEW
   // ─────────────────────────────────────────────
 
-  /// Registra visualização de tela
   Future<void> trackScreenView({
     required String screenName,
     String? screenClass,
@@ -48,171 +40,190 @@ class AnalyticsService {
       screenName: screenName,
       screenClass: screenClass ?? screenName,
     );
-
-    _addToLog(
-      eventName: 'screen_view',
-      screen: screenName,
-      parameters: {
-        'screen_name': screenName,
-        'screen_class': screenClass ?? screenName,
-      },
-    );
+    _log('screen_view', screenName, {'screen_name': screenName});
   }
 
-  /// Registra um evento customizado
+  // ─────────────────────────────────────────────
+  // E-COMMERCE EVENTS (padrão Firebase/GA4)
+  // ─────────────────────────────────────────────
+
+  /// view_item — Usuário visualizou um produto
+  Future<void> trackViewItem({
+    required Product product,
+    required String screen,
+  }) async {
+    await _analytics.logViewItem(
+      currency: 'BRL',
+      value: product.price,
+      items: [_toAnalyticsItem(product)],
+    );
+    _log('view_item', screen, {
+      'item_id': product.id,
+      'item_name': product.name,
+      'price': product.price,
+    });
+  }
+
+  /// add_to_cart — Produto adicionado ao carrinho
+  Future<void> trackAddToCart({
+    required Product product,
+    required String screen,
+  }) async {
+    await _analytics.logAddToCart(
+      currency: 'BRL',
+      value: product.price,
+      items: [_toAnalyticsItem(product)],
+    );
+    _log('add_to_cart', screen, {
+      'item_id': product.id,
+      'item_name': product.name,
+      'price': product.price,
+    });
+  }
+
+  /// remove_from_cart — Produto removido do carrinho
+  Future<void> trackRemoveFromCart({
+    required Product product,
+    required String screen,
+  }) async {
+    await _analytics.logRemoveFromCart(
+      currency: 'BRL',
+      value: product.price,
+      items: [_toAnalyticsItem(product)],
+    );
+    _log('remove_from_cart', screen, {
+      'item_id': product.id,
+      'item_name': product.name,
+      'price': product.price,
+    });
+  }
+
+  /// view_cart — Usuário abriu o carrinho
+  Future<void> trackViewCart({
+    required CartModel cart,
+    required String screen,
+  }) async {
+    await _analytics.logEvent(
+      name: 'view_cart',
+      parameters: {
+        'currency': 'BRL',
+        'value': cart.totalPrice,
+        'item_count': cart.itemCount,
+      },
+    );
+    _log('view_cart', screen, {
+      'total': cart.totalPrice,
+      'item_count': cart.itemCount,
+    });
+  }
+
+  /// begin_checkout — Usuário iniciou o checkout
+  Future<void> trackBeginCheckout({
+    required CartModel cart,
+    required String screen,
+  }) async {
+    await _analytics.logBeginCheckout(
+      currency: 'BRL',
+      value: cart.totalPrice,
+      items: cart.items.map((i) => _toAnalyticsItem(i.product)).toList(),
+    );
+    _log('begin_checkout', screen, {
+      'total': cart.totalPrice,
+      'item_count': cart.itemCount,
+    });
+  }
+
+  /// purchase — Compra finalizada
+  Future<void> trackPurchase({
+    required CartModel cart,
+    required String orderId,
+    required String screen,
+  }) async {
+    await _analytics.logPurchase(
+      currency: 'BRL',
+      value: cart.totalPrice,
+      transactionId: orderId,
+      items: cart.items.map((i) => _toAnalyticsItem(i.product)).toList(),
+    );
+    _log('purchase', screen, {
+      'order_id': orderId,
+      'total': cart.totalPrice,
+      'item_count': cart.itemCount,
+    });
+  }
+
+  /// select_item — Usuário clicou em "detalhes" de um produto
+  Future<void> trackSelectItem({
+    required Product product,
+    required String screen,
+  }) async {
+    await _analytics.logSelectItem(
+      itemListId: 'home_product_list',
+      itemListName: 'Home',
+      items: [_toAnalyticsItem(product)],
+    );
+    _log('select_item', screen, {
+      'item_id': product.id,
+      'item_name': product.name,
+    });
+  }
+
+  /// Evento customizado genérico
   Future<void> trackEvent({
     required String eventName,
     required String screen,
     Map<String, Object>? parameters,
   }) async {
-    // Parâmetros enriquecidos com dados padrão
-    final enrichedParams = <String, Object>{
+    final params = <String, Object>{
       'screen': screen,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
       ...?parameters,
     };
-
-    await _analytics.logEvent(
-      name: eventName,
-      parameters: enrichedParams,
-    );
-
-    _addToLog(
-      eventName: eventName,
-      screen: screen,
-      parameters: enrichedParams,
-    );
-  }
-
-  /// Registra clique em botão
-  Future<void> trackButtonClick({
-    required String buttonId,
-    required String screen,
-    Map<String, Object>? extraParams,
-  }) async {
-    await trackEvent(
-      eventName: 'button_click',
-      screen: screen,
-      parameters: {
-        'button_id': buttonId,
-        ...?extraParams,
-      },
-    );
-  }
-
-  /// Registra navegação entre telas
-  Future<void> trackNavigation({
-    required String from,
-    required String to,
-    String? buttonId,
-    Map<String, Object>? extraParams,
-  }) async {
-    await trackEvent(
-      eventName: 'navigation_click',
-      screen: from,
-      parameters: {
-        'origin': from,
-        'destination': to,
-        if (buttonId != null) 'button_id': buttonId,
-        ...?extraParams,
-      },
-    );
-  }
-
-  /// Registra seleção de opção
-  Future<void> trackOptionSelected({
-    required String screen,
-    required String optionId,
-    required String optionLabel,
-    Map<String, Object>? extraParams,
-  }) async {
-    await trackEvent(
-      eventName: 'option_selected',
-      screen: screen,
-      parameters: {
-        'option_id': optionId,
-        'option_label': optionLabel,
-        ...?extraParams,
-      },
-    );
-  }
-
-  /// Registra conclusão de fluxo
-  Future<void> trackFlowCompleted({
-    required String screen,
-    required Map<String, Object> flowData,
-  }) async {
-    await trackEvent(
-      eventName: 'flow_completed',
-      screen: screen,
-      parameters: flowData,
-    );
-  }
-
-  /// Registra reinício de fluxo
-  Future<void> trackFlowRestart({
-    required String screen,
-    int? totalEvents,
-  }) async {
-    await trackEvent(
-      eventName: 'flow_restart',
-      screen: screen,
-      parameters: {
-        'total_events_before_restart': totalEvents ?? _eventLog.length,
-      },
-    );
-  }
-
-  /// Define propriedades do usuário (útil para segmentação)
-  Future<void> setUserProperty({
-    required String name,
-    required String value,
-  }) async {
-    await _analytics.setUserProperty(name: name, value: value);
-
-    if (kDebugMode) {
-      debugPrint('📊 [AnalyticsService] UserProperty: $name = $value');
-    }
+    await _analytics.logEvent(name: eventName, parameters: params);
+    _log(eventName, screen, params);
   }
 
   // ─────────────────────────────────────────────
-  // LOG LOCAL
+  // HELPERS
   // ─────────────────────────────────────────────
 
-  void _addToLog({
-    required String eventName,
-    required String screen,
-    required Map<String, Object> parameters,
-  }) {
-    final event = {
+  AnalyticsEventItem _toAnalyticsItem(Product product) {
+    return AnalyticsEventItem(
+      itemId: product.id,
+      itemName: product.name,
+      itemCategory: product.category,
+      currency: 'BRL',
+      price: product.price,
+      quantity: 1,
+    );
+  }
+
+  void _log(
+    String eventName,
+    String screen,
+    Map<String, dynamic> params,
+  ) {
+    final entry = {
       'event': eventName,
       'screen': screen,
       'timestamp': DateTime.now().toIso8601String(),
-      'parameters': parameters,
+      'parameters': params,
     };
-
-    _eventLog.add(event);
+    _eventLog.add(entry);
 
     if (kDebugMode) {
       debugPrint(
-        '📊 [ANALYTICS] ${event['event']} | '
-        'Screen: ${event['screen']} | '
-        'Params: ${event['parameters']}',
+        '📊 [ANALYTICS] $eventName | Screen: $screen | Params: $params',
       );
     }
   }
 
-  /// Retorna cópia imutável do log local
   List<Map<String, dynamic>> get eventLog => List.unmodifiable(_eventLog);
-
-  /// Limpa o log local (não afeta o Firebase)
   void clearLog() => _eventLog.clear();
 
-  /// Retorna contagem por tipo de evento
   Map<String, int> get eventSummary {
     final summary = <String, int>{};
-    for (final event in _eventLog) {
-      final name = event['event'] as String;
+    for (final e in _eventLog) {
+      final name = e['event'] as String;
       summary[name] = (summary[name] ?? 0) + 1;
     }
     return summary;
